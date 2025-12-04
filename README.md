@@ -14,8 +14,8 @@ Otherwise, it will place them at `$HOME/.local/share/icons` directory.
 
 `clean.sh` will remove all build artifacts.
 
-`src` directory contains your source `.SVG` cursor images __or__ directories
-with `.SVG` frames for an animated cursors.
+`src` directory contains your source `.SVG` cursor images <ins>__or__</ins>
+directories with `.SVG` frames for animated cursors.
 
 `symlinks` directory contains optional `.links` files for cursors.
 In these files symlinks for cursors are defined.
