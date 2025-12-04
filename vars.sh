@@ -12,7 +12,7 @@ THEME_COMMENT=""
 PATH_THEME_NAME="xcursor_template_theme"
 
 SRC_DIR="src"
-ANIMTIMES_DIR="frametimes"
+FRAMETIMES_DIR="frametimes"
 HOTSPOTS_DIR="hotspots"
 SYMLINKS_DIR="symlinks"
 IMGS_DIR="imgs"

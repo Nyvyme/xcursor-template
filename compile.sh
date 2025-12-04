@@ -27,7 +27,7 @@ do
   fi
 done
 
-if [ ${#IMGS[@]} -eq 0 && ${#ANIMATED[@]} -eq 0 ]
+if [ ${#IMGS[@]} -eq 0 ] && [ ${#ANIMATED[@]} -eq 0 ]
 then
   echo "### No source .SVG images were found in \"$src_dir\" directory."
   echo "### Exitting..."
@@ -57,13 +57,13 @@ has_command() {
 }
 
 create_dir() {
-  echo "Creating \"$1\" directory..."
+  echo "Creating \"$1\" directory ..."
   mkdir -p "$1"
-  echo "Creating \"$1\" directory... DONE"
+  echo "Creating \"$1\" directory ... DONE"
 }
 
 # Check if inkscape is installed
-echo "Checking if inkscape is installed..."
+echo "Checking if inkscape is installed ..."
 if [ ! "$(which inkscape 2> /dev/null)" ]
 then
   echo "inkscape must be installed to generate cursors"
@@ -82,10 +82,10 @@ then
   fi
   exit -1
 fi
-echo "Checking if inkscape is installed... DONE"
+echo "Checking if inkscape is installed ... DONE"
 
 # Check if bc is installed
-echo "Checking if bc is installed..."
+echo "Checking if bc is installed ..."
 if [ ! "$(which bc 2> /dev/null)" ]
 then
   echo "bc must be installed to generate cursors"
@@ -103,10 +103,10 @@ then
     echo "### Reference your distro's packages."
   fi
 fi
-echo "Checking if bc is installed... DONE"
+echo "Checking if bc is installed ... DONE"
 
 # Check if xcursorgen is installed
-echo "Checking if xcursorgen is installed..."
+echo "Checking if xcursorgen is installed ..."
 if [ ! "$(which xcursorgen 2> /dev/null)" ]
 then
   echo "xorg-xcursorgen must be installed to generate cursors"
@@ -124,7 +124,7 @@ then
     echo "### Reference your distro's packages."
   fi
 fi
-echo "Checking if xcursorgen is installed... DONE"
+echo "Checking if xcursorgen is installed ... DONE"
 
 # Create directory for images
 if [ ! -d $IMGS_DIR ]
@@ -145,11 +145,11 @@ then
 fi
 
 get_hotspot() {
-  CURSOR_NAME=$1
+  CUR_NAME=$1
   RES=$2
 
   # Check if hotspot file exists
-  HOTSPOT_FILE="$HOTSPOTS_DIR/$CURSOR_NAME.hotspot"
+  HOTSPOT_FILE="$HOTSPOTS_DIR/$CUR_NAME.hotspot"
   if [ -f $HOTSPOT_FILE ]
   then
     # Read hotspot file
@@ -173,162 +173,205 @@ get_hotspot() {
   echo "$HOTSPOT_X $HOTSPOT_Y" 2>&1
 }
 
-generate_cursor() {
-  RES=$1
-  IMG=$2
+generate_static_cursor() {
+  CUR_NAME=$1
 
-  echo "Generating cursor for image $IMG.svg..."
+  echo "Generating cursor \"$CUR_NAME\" ..."
 
-  HOTSPOT_FILE="$HOTSPOTS_DIR/${IMG}.hotspot"
-  OUTPUT_IMAGE_PATH="$IMGS_DIR/${RES}x${RES}/$IMG.png"
-  SRC_SVG_PATH="$SRC_DIR/$IMG.svg"
-  SRC="$IMGS_DIR/${RES}x${RES}/$IMG.png"
-  CURSOR_FILE="$CURSOR_DIR/$IMG.cursor"
-  BUILD_FILE="$BUILD_DIR/$IMG"
+  # Generating images
+  CURSOR_CONFIG_DATA=()
+  for RES in ${RESOLUTIONS[*]}
+  do
+    echo "Generating cursor \"$CUR_NAME\" for resolution ${RES}x${RES} ..."
 
-  # Generate images
-  echo "Generating $OUTPUT_IMAGE_PATH ..."
-  inkscape -o $OUTPUT_IMAGE_PATH -w $RES -h $RES $SRC_SVG_PATH
-  echo "Generating $OUTPUT_IMAGE_PATH ... DONE"
+    OUTPUT_IMGS_DIR="$IMGS_DIR/$CUR_NAME"
+    IMG_FILE="$OUTPUT_IMGS_DIR/${CUR_NAME}_$RES.png"
+    SRC_SVG="$SRC_DIR/$CUR_NAME.svg"
 
-  # Get hotspot
-  HOTSPOT=$(get_hotspot $IMG $RES)
-  HOTSPOT_X=${HOTSPOT/ */}
-  HOTSPOT_Y=${HOTSPOT/* /}
+    if [ ! -d "$OUTPUT_IMGS_DIR" ]
+    then
+      create_dir $OUTPUT_IMGS_DIR
+    fi
 
-  # Generate config
-  echo "Generating cursor config \"$CURSOR_FILE\"..."
-  echo "$RESOLUTION $HOTSPOT_X $HOTSPOT_Y $SRC" > $CURSOR_FILE
-  echo "Generating cursor config \"$CURSOR_FILE\"... DONE"
+    # Generate image
+    echo "Generating \"$IMG_FILE\" ..."
+    inkscape -o "$IMG_FILE" -w $RES -h $RES "$SRC_SVG"
+    echo "Generating \"$IMG_FILE\" ... DONE"
 
-  # Generate cursor
-  echo "Generating cursor \"$BUILD_FILE\"..."
-  xcursorgen $CURSOR_FILE $BUILD_FILE
-  echo "Generating cursor \"$BUILD_FILE\"... DONE"
+    # Get hotspot
+    HOTSPOT=$(get_hotspot $CUR_NAME $RES)
+    HOTSPOT_X=${HOTSPOT/ */}
+    HOTSPOT_Y=${HOTSPOT/* /}
 
-  echo "Generating cursor for image $IMG.svg... DONE"
+    # Add entry to cursor config
+    CURSOR_CONFIG_DATA+=("$RES $HOTSPOT_X $HOTSPOT_Y $IMG_FILE")
 
-  SYMLINKS_FILE="$SYMLINKS_DIR/$IMG.links"
+    echo "Generating cursor \"$CUR_NAME\" for resolution ${RES}x${RES} ... DONE"
+  done
+
+  # Generate cursor config
+  CURSOR_CONFIG_FILE="$CURSORS_DIR/$CUR_NAME.cursor"
+  echo "Generating cursor config \"$CURSOR_CONFIG_FILE\" ..."
+  __BUF=""
+  for (( i=0; i < ${#CURSOR_CONFIG_DATA[@]}; i++ ))
+  do
+    if [ $i -eq 0 ]
+    then
+      __BUF+="${CURSOR_CONFIG_DATA[$i]}"
+    else
+      __BUF+="\n${CURSOR_CONFIG_DATA[$i]}"
+    fi
+  done
+  echo -e "$__BUF" > "$CURSOR_CONFIG_FILE"
+  unset __BUF
+  echo "Generating cursor config \"$CURSOR_CONFIG_FILE\" ... DONE"
+
+  # Generate xcursor
+  BUILD_DIR="$BUILDS_DIR/$PATH_THEME_NAME/cursors"
+  if [ ! -d "$BUILD_DIR" ]
+  then
+    create_dir $BUILD_DIR
+  fi
+
+  BUILD_FILE="$BUILDS_DIR/$PATH_THEME_NAME/cursors/$CUR_NAME"
+  echo "Generating xcursor \"$BUILD_FILE\" ..."
+  xcursorgen "$CURSOR_CONFIG_FILE" "$BUILD_FILE"
+  echo "Generating xcursor \"$BUILD_FILE\" ... DONE"
+
+  SYMLINKS_FILE="$SYMLINKS_DIR/$CUR_NAME.links"
   # Check if symlinks file is present
-  if [ -f $SYMLINKS_FILE ]
+  if [ -f "$SYMLINKS_FILE" ]
   then
     # Generate symlinks
-    echo "Generating symlinks for $IMG..."
-    while read -r LINK_LINE; do
-      cd $BUILD_DIR
-      if [ ! -f "$LINK_LINE" ]
+    echo "Generating symlinks for cursor \"$CUR_NAME\" ..."
+    while read -r LINK_NAME
+    do
+      cd "$BUILD_DIR"
+      if [ ! -f "$LINK_NAME" ]
       then
-        echo "Generating symlink \"$BUILD_DIR/$LINK_LINE\" to \"$IMG\"..."
-        ln -sr "$IMG" "$LINK_LINE"
-        echo "Generating symlink \"$BUILD_DIR/$LINK_LINE\" to \"$IMG\"..."\
-             "DONE"
+        echo "Generating symlink \"$LINK_NAME\" to \"$CUR_NAME\" ..."
+        ln -sr "$CUR_NAME" "$LINK_NAME"
+        echo "Generating symlink \"$LINK_NAME\" to \"$CUR_NAME\" ... DONE"
       fi
-      cd ../../..
-    done < $SYMLINKS_FILE
-    echo "Generating symlinks for $IMG... DONE"
+      cd "../../.."
+    done < "$SYMLINKS_FILE"
+    echo "Generating symlinks for cursor \"$CUR_NAME\" ... DONE"
   fi
+
+  echo "Generating cursor \"$CUR_NAME\" ... DONE"
 }
 
 generate_animated_cursor() {
-  RES=$1
-  DIR=$2
+  CUR_NAME=$1
 
-  HOTSPOT_FILE="$HOTSPOTS_DIR/$DIR.hotspot"
-  IMGS_PATH="$IMGS_DIR/${RES}x${RES}/$DIR"
-  SRC_SVGS_PATH="$SRC_DIR/$DIR"
-  CURSOR_FILE="$CURSOR_DIR/$DIR.cursor"
-  BUILD_FILE="$BUILD_DIR/$DIR"
+  echo "Generating cursor \"$CUR_NAME\" ..."
 
-  if [ ! -d $IMGS_PATH ]
-  then
-    create_dir $IMGS_PATH
-  fi
+  SRC_SVG_DIR="$SRC_DIR/$CUR_NAME"
 
-  # Get all images .SVG images in cursor's directory
-  ANIMATION_FILES=()
-  for FILE_NAME in $(find $SRC_SVGS_PATH -maxdepth 1 -type f)
+  # Get animation frames
+  FRAMES=()
+  for FILE_NAME in $(find "$SRC_SVG_DIR" -maxdepth 1 -type f)
   do
-    if [ ${FILE_NAME/*./} == "svg" ]
+    if [ "${FILE_NAME/*./}" == "svg" ]
     then
       FILE_NAME=${FILE_NAME/.*/}
-      FILE_NAME=${FILE_NAME/*$SRC_SVGS_PATH\//}
-      ANIMATION_FILES+=($FILE_NAME)
+      FILE_NAME=${FILE_NAME/*$SRC_SVG_DIR\//}
+      FRAMES+=($FILE_NAME)
     fi
   done
 
-  # Check if there's at least one animation file
-  if [ ${#ANIMATION_FILES[@]} -eq 0 ]
+  # Check if there's at least one frame
+  if [ ${#FRAMES[@]} -eq 0 ]
   then
-    echo "### Animation files for cursor \"$DIR\" are missing"
+    echo "### Animation frames for cursor \"$CUR_NAME\" are missing"
     return
   fi
 
-  # Sort files
+  # Sort frames
   IFS=$'\n'
-  ANIMATION_FILES=($(sort -V <<< "${ANIMATION_FILES[*]}"))
+  FRAMES=($(sort -V <<< "${FRAMES[*]}"))
   unset IFS
 
   # Get frametimes
-  ANIMTIMES=()
-  if [ -f "$ANIMTIMES_DIR/$DIR.frametime" ]
+  FRAMETIMES=()
+  if [ -f "$FRAMETIMES_DIR/$CUR_NAME.frametime" ]
   then
-    while read -r ANIMTIME; do
-      ANIMTIMES+=($ANIMTIME)
-    done < "$ANIMTIMES_DIR/$DIR.frametime"
+    while read -r FRAMETIME
+    do
+      FRAMETIMES+=($FRAMETIME)
+    done < "$FRAMETIMES_DIR/$CUR_NAME.frametime"
 
-    if [ ${#ANIMTIMES[@]} -lt ${#ANIMATION_FILES[@]} ]
+    if [ ${#FRAMETIMES[@]} -lt ${#FRAMES[@]} ]
     then
-      # Number of frame times is less than number of frames.
-      # Add default frametimes.
-      ANIMTIMES+=($DEFAULT_FRAMETIME)
-    elif [ ${#ANIMTIMES[@]} -gt ${#ANIMATION_FILES[@]} ]
+      # Number of frame times is less than a number of frames.
+      # Add default frametimes
+      for (( i=${#FRAMETIMES[@]}; i < ${#FRAMES[@]}; i++ ))
+      do
+        FRAMETIMES+=($DEFAULT_FRAMETIME)
+      done
+    elif [ ${#FRAMETIMES[@]} -gt ${#FRAMES[@]} ]
     then
-      # Number of frame times is greater than number of frames.
-      # Print warning and remove frametimes.
-      echo "### Number of frametimes (${#ANIMTIMES[@]})" \
-        "is greater than number of frames (${#ANIMATION_FILES[@]})"
+      # Number of frame times is greater than a number of frames.
+      # Print warning and remove extra frames
+      echo "### Number of frametimes (${#FRAMETIMES[@]})" \
+           "is greater than a number of frames (${#FRAMES[@]})"
       echo "### Consider removing extra frames"
 
       __BUF=()
-      for (( i=0; i < ${#ANIMATION_FILES[@]}; i++ ))
+      for (( i=0; i < ${#FRAMES[@]}; i++ ))
       do
-        __BUF+=(${ANIMTIMES[$i]})
+        __BUF+=(${FRAMETIMES[$i]})
       done
-      unset ANIMTIMES
-      ANIMTIMES=${__BUF[*]}
+      unset FRAMETIMES
+      FRAMETIMES=${__BUF[*]}
       unset __BUF
     fi
   else
-    for _ in ${ANIMATION_FILES[*]}
+    # There are no specified frametimes for an animated cursor.
+    # Use default frametime.
+    for _ in ${FRAMES[*]}
     do
-      ANIMTIMES+=($DEFAULT_FRAMETIME)
+      FRAMETIMES+=($DEFAULT_FRAMETIME)
     done
   fi
 
-  # Get hotspot
-  HOTSPOT=$(get_hotspot $DIR $RES)
-  HOTSPOT_X=${HOTSPOT/ */}
-  HOTSPOT_Y=${HOTSPOT/* /}
-
-  # Generate images and cursor config
+  # Generate images and add them into a cursor config
   CURSOR_CONFIG_DATA=()
-  echo "Generating cursor from images in \"$DIR\" directory..."
-  for (( i=0; i < ${#ANIMATION_FILES[@]}; i++ ))
+  for RES in ${RESOLUTIONS[*]}
   do
-    ANIM_FILE=${ANIMATION_FILES[$i]}
-    FRAMETIME=${ANIMTIMES[$i]}
+    OUTPUT_IMGS_DIR="$IMGS_DIR/$CUR_NAME/$RES"
+    if [ ! -d "$OUTPUT_IMGS_DIR" ]
+    then
+      create_dir $OUTPUT_IMGS_DIR
+    fi
 
-    echo "[$ANIM_FILE/${#ANIMATION_FILES[@]}] $DIR cursor..."
+    # Get hotspot
+    HOTSPOT=$(get_hotspot $CUR_NAME $RES)
+    HOTSPOT_X=${HOTSPOT/ */}
+    HOTSPOT_Y=${HOTSPOT/* /}
 
-    # Rasterize the image
-    inkscape -o $IMGS_PATH/$ANIM_FILE.png -w $RES -h $RES \
-      $SRC_SVGS_PATH/$ANIM_FILE.svg
+    # Generate cursor frame images and add them into a cursor config
+    echo "Generating cursor frames for cursor \"$CUR_NAME\" ${RES}x${RES} ..."
+    for (( i=0; i < ${#FRAMES[@]}; i++ ))
+    do
+      FRAME=${FRAMES[$i]}
+      FRAMETIME=${FRAMETIMES[$i]}
 
-    # Add frame into a cursor config data
-    CURSOR_CONFIG_DATA+=("$RES $HOTSPOT_X $HOTSPOT_Y $IMGS_PATH/$ANIM_FILE.png $FRAMETIME")
+      echo "[$(( $i + 1 ))/${#FRAMES[@]} frames]" \
+        "\"$CUR_NAME\" ${RES}x${RES} cursor ..."
+
+      # Generate image
+      inkscape -o "$OUTPUT_IMGS_DIR/$FRAME.png" -w $RES -h $RES "$SRC_SVG_DIR/$FRAME.svg"
+
+      # Add line into a cursor config data
+      CURSOR_CONFIG_DATA+=("$RES $HOTSPOT_X $HOTSPOT_Y $OUTPUT_IMGS_DIR/$FRAME.png $FRAMETIME")
+    done
+    echo "Generating cursor frames for cursor \"$CUR_NAME\" ${RES}x${RES} ..." \
+      "DONE"
   done
 
-  # Add cursor config data into a file
+  # Generate cursor config
+  CURSOR_CONFIG_FILE="$CURSORS_DIR/$CUR_NAME.cursor"
   __BUF=""
   for (( i=0; i < ${#CURSOR_CONFIG_DATA[@]}; i++))
   do
@@ -339,90 +382,70 @@ generate_animated_cursor() {
       __BUF+="\n${CURSOR_CONFIG_DATA[$i]}"
     fi
   done
-  echo -e "$__BUF" > $CURSOR_FILE
+  echo -e "$__BUF" > "$CURSOR_CONFIG_FILE"
   unset __BUF
 
-  # Generate cursor
-  echo "Generating cursor \"$BUILD_FILE\"..."
-  xcursorgen $CURSOR_FILE $BUILD_FILE
-  echo "Generating cursor \"$BUILD_FILE\"... DONE"
-
-  echo "Generating cursor from images in \"$DIR\" directory... DONE"
-
-  SYMLINKS_FILE="$SYMLINKS_DIR/$DIR.links"
-  # Check if symlinks file is present
-  if [ -f $SYMLINKS_FILE ]
-  then
-    # Generate symlinks
-    echo "Generating symlinks for $DIR..."
-    while read -r LINK_LINE; do
-      cd $BUILD_DIR
-      if [ ! -f "$LINK_LINE" ]
-      then
-        echo "Generating symlink \"$BUILD_DIR/$LINK_LINE\" to \"$DIR\"..."
-        ln -sr "$DIR" "$LINK_LINE"
-        echo "Generating symlink \"$BUILD_DIR/$LINK_LINE\" to \"$DIR\"..."\
-             "DONE"
-      fi
-      cd ../../..
-    done < $SYMLINKS_FILE
-    echo "Generating symlinks for $DIR... DONE"
-  fi
-}
-
-# Generate cursors
-for RESOLUTION in ${RESOLUTIONS[*]}
-do
-  echo "Generating cursor theme for resolution ${RESOLUTION}x${RESOLUTION}..."
-
-  THEME_DIR="$BUILDS_DIR/${PATH_THEME_NAME}_${RESOLUTION}x${RESOLUTION}"
-  BUILD_DIR="$THEME_DIR/cursors"
-  CURSOR_DIR="$CURSORS_DIR/${RESOLUTION}x${RESOLUTION}"
-
-  # Create source images directory
-  if [ ! -d "$IMGS_DIR/${RESOLUTION}x${RESOLUTION}" ]
-  then
-    create_dir "$IMGS_DIR/${RESOLUTION}x${RESOLUTION}"
-  fi
-
-  # Create theme directory
-  if [ ! -d $THEME_DIR ]
-  then
-    create_dir $THEME_DIR
-  fi
-
-  # Create build directory for specific resolution
-  if [ ! -d $BUILD_DIR ]
+  # Generate xcursor
+  BUILD_DIR="$BUILDS_DIR/$PATH_THEME_NAME/cursors"
+  if [ ! -d "$BUILD_DIR" ]
   then
     create_dir $BUILD_DIR
   fi
 
-  # Create cursors config directory for specific resolution
-  if [ ! -d $CURSOR_DIR ]
+  BUILD_FILE="$BUILDS_DIR/$PATH_THEME_NAME/cursors/$CUR_NAME"
+  echo "Generating xcursor \"$BUILD_FILE\" ..."
+  xcursorgen "$CURSOR_CONFIG_FILE" "$BUILD_FILE"
+  echo "Generating xcursor \"$BUILD_FILE\" ... DONE"
+
+  SYMLINKS_FILE="$SYMLINKS_DIR/$CUR_NAME.links"
+  # Check if symlinks file is present
+  if [ -f "$SYMLINKS_FILE" ]
   then
-    create_dir $CURSOR_DIR
+    # Generate symlinks
+    echo "Generating symlinks for cursor \"$CUR_NAME\" ..."
+    while read -r LINK_NAME
+    do
+      cd "$BUILD_DIR"
+      if [ ! -f "$LINK_NAME" ]
+      then
+        echo "Generating symlink \"$LINK_NAME\" to \"$CUR_NAME\" ..."
+        ln -sr "$CUR_NAME" "$LINK_NAME"
+        echo "Generating symlink \"$LINK_NAME\" to \"$CUR_NAME\" ... DONE"
+      fi
+      cd "../../.."
+    done < "$SYMLINKS_FILE"
+    echo "Generating symlinks for cursor \"$CUR_NAME\" ... DONE"
   fi
 
-  # Create index.theme
-  echo "Generating $THEME_DIR/index.theme..."
-  INDEX_THEME="[Icon Theme]\n"
-  INDEX_THEME+="Name=${THEME_NAME} ${RESOLUTION}x${RESOLUTION}\n"
-  INDEX_THEME+="Comment=${THEME_COMMENT}\n"
-  echo -e "$INDEX_THEME" > "$THEME_DIR/index.theme"
-  echo "Generating $THEME_DIR/index.theme... DONE"
+  echo "Generating cursor \"$CUR_NAME\" ... DONE"
+}
+
+generate_cursors() {
+  THEME_DIR="$BUILDS_DIR/$PATH_THEME_NAME"
+  if [ ! -d "$THEME_DIR" ]
+  then
+    create_dir "$THEME_DIR"
+  fi
 
   # Generate static cursors
-  for IMG in ${IMGS[*]}
+  for STATIC_CUR in ${IMGS[*]}
   do
-    generate_cursor $RESOLUTION $IMG
+    generate_static_cursor $STATIC_CUR
   done
 
   # Generate animated cursors
-  for ANIM in ${ANIMATED[*]}
+  for ANIM_CUR in ${ANIMATED[*]}
   do
-    generate_animated_cursor $RESOLUTION $ANIM
+    generate_animated_cursor $ANIM_CUR
   done
 
-  echo "Generating cursor theme for resolution" \
-    "${RESOLUTION}x${RESOLUTION}... DONE"
-done
+  # Generate index.theme
+  echo "Generating index.theme for theme \"$THEME_NAME\" ..."
+  INDEX_THEME="[Icon Theme]\n"
+  INDEX_THEME+="Name=${THEME_NAME}\n"
+  INDEX_THEME+="Comment=${THEME_COMMENT}\n"
+  echo -e "$INDEX_THEME" > "$THEME_DIR/index.theme"
+  echo "Generating index.theme for theme \"$THEME_NAME\" ... DONE"
+}
+
+generate_cursors
